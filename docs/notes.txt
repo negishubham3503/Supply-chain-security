@@ -1,0 +1,21 @@
+Dependency Analysis: #Barbora's Literature Review Finds
+
+OWASP SCA tool checking dependencies against CVEs: 
+https://github.com/dependency-check/DependencyCheck
+https://owasp.org/www-project-dependency-check/
+
+OpenSSF Scorecard assessing various risk-factors of a repository:
+https://github.com/ossf/scorecard
+https://scorecard.dev/
+
+Google's Open Source Dependency Graph API: 
+https://github.com/google/deps.dev
+https://deps.dev/
+
+Google's Open Source Vulnerability tools:
+https://github.com/google/osv.dev
+https://osv.dev/
+JSON schema for describing vulnerabilities in packages:
+https://ossf.github.io/osv-schema/
+Scans dependency against OSV database which aggregates other vulnerability dbs:
+https://github.com/google/osv-scanner
