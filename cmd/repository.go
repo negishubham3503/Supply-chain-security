@@ -128,7 +128,7 @@ const baseUrl = "https://api.github.com/repos"
 var repositoryCmd = &cobra.Command{
 	Use:     "repository",
 	Aliases: []string{"repo"},
-	Long:    "Enter your repository URL to perform compostion analysis",
+	Long:    "Enter your repository URL to retrieve general repository overview",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		parsedUrl, err := url.Parse(args[0])
