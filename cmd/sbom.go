@@ -78,7 +78,12 @@ var sbomCmd = &cobra.Command{
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println(string(prettified))
+
+		for i, p := range sbom.Sbom.Packages {
+			fmt.Println(i, p.ExternalRefs[0].ReferenceLocator)
+		} //prints out all included packages, and itself?
+
+		//fmt.Println(string(prettified))
 
 		err = os.WriteFile("bom.json", prettified, 0644)
 		if err != nil {
