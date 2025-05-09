@@ -35,3 +35,13 @@ type Package struct {
 	Version   string
 	Ecosystem string
 }
+
+type CommitRisk struct {
+	score  string
+	commit Commit
+}
+
+type AuthorRisk struct {
+	score  string
+	author Author
+}

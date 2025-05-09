@@ -250,3 +250,7 @@ func GetAllVulnerableCommitsinOSVByRepo(repo types.Repo) []types.Commit {
 
 	return allVulnerableCommits
 }
+
+func RateRiskofCommits(repo types.Repo) {
+
+}
