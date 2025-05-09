@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"supply-chain-security/config"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -123,7 +124,7 @@ type GitHubRepo struct {
 	SubscribersCount         int    `json:"subscribers_count"`
 }
 
-const baseUrl = "https://api.github.com/repos"
+const baseUrl = config.GithubApiBaseUrl + "repos"
 
 var repositoryCmd = &cobra.Command{
 	Use:     "repository",
