@@ -3,126 +3,87 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"os"
 	"supply-chain-security/config"
 	"supply-chain-security/util"
+	"time"
 
-	"github.com/google/go-github/github"
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
-var supportedFiles = []string{
-	"go.sum",
-	"package-lock.json",
-	"requirements.txt",
-}
-
 const baseUrl = config.GithubApiBaseUrl + "repos"
+
+var repoURL string
 
 var repositoryCmd = &cobra.Command{
 	Use:     "repository",
 	Aliases: []string{"repo"},
+	Short:   "Analyze a GitHub repository",
 	Long:    "Enter your repository URL to retrieve general repository overview",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		parsedUrl, err := url.Parse(args[0])
-		if err != nil {
-			fmt.Println("Error parsing the repository URL that you entered")
+		if repoURL == "" {
+			fmt.Println("Error: --url flag is required")
 			return
 		}
-		repoUrl := baseUrl + parsedUrl.Path
 
 		ctx := context.Background()
-		client := github.NewClient(nil)
+		_ = godotenv.Load()
 
-		owner, repo, err := util.ParseGitHubURL(repoUrl)
+		token := os.Getenv("GITHUB_ACCESS_TOKEN")
+		if token == "" {
+			panic("Github Token Not set")
+		}
+
+		client := util.NewGitHubClient(ctx, token)
+
+		owner, repo, err := util.ParseGitHubURL(repoURL)
 		if err != nil {
 			panic(err)
 		}
 
-		branch, err := util.GetDefaultBranch(ctx, client, owner, repo)
+		file, err := util.FindLockfile(ctx, client, owner, repo)
 		if err != nil {
+			fmt.Printf("Could not find lockfile || lockfile not supported")
 			panic(err)
 		}
 
-		seenPURLs := make(map[string]struct{})
+		fmt.Printf("\nChecking commits for %s\n", file)
+		commits, err := util.GetLockFileCommits(ctx, client, owner, repo, file)
+		if err != nil {
+			fmt.Printf("Error getting commits: %v\n", err)
+			panic(err)
+		}
 
-		for _, file := range supportedFiles {
-			if !util.FileExists(ctx, client, owner, repo, branch, file) {
-				fmt.Printf("Skipping %s: not found\n", file)
-				continue
-			}
+		for i, commit := range commits {
+			sha := commit.GetSHA()
+			commit_author := commit.GetCommit().GetAuthor().GetEmail()
+			commit_date := commit.GetCommit().GetAuthor().GetDate()
 
-			fmt.Printf("\nChecking commits for %s\n", file)
-			commits, err := util.ListCommitsTouchingFile(ctx, client, owner, repo, branch, file)
+			content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
 			if err != nil {
-				fmt.Printf("Error getting commits: %v\n", err)
-				continue
+				fmt.Printf("Error reading file at %s: %v\n", sha, err)
+				panic(err)
 			}
 
-			var lastPkgs []string
+			packageUrls := util.ExtractPackages(file, content)
 
-			for _, commit := range commits {
-				sha := commit.GetSHA()
-				content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
-				if err != nil {
-					fmt.Printf("Error reading file at %s: %v\n", sha, err)
-					continue
-				}
-
-				pkgs := util.ExtractPackages(file, content)
-				added := util.DiffPkgLists(lastPkgs, pkgs)
-				for _, a := range added {
-					if _, ok := seenPURLs[a]; !ok {
-						seenPURLs[a] = struct{}{}
-						fmt.Println("Added:", a)
-					}
-				}
-				lastPkgs = pkgs
-
-				fmt.Printf("Commit %s\n", sha)
-				fmt.Printf("File content (first 200 chars):\n%s\n\n", content[:min(len(content), 200)])
-				fmt.Printf("Parsed %d packages\n", len(pkgs))
+			// This requires work
+			for _, purl := range packageUrls {
+				//evaluate Risk Code
+				fmt.Printf("Risk for %s - Not Implemented\n", purl)
 			}
+			fmt.Printf("\n\n-------------\n\n")
 
+			fmt.Printf("Commit - %d | Made by - %s | At time - %s\n", i, commit_author, commit_date.Format(time.RFC3339))
 		}
-
-		fmt.Println("\n✅ Unique dependencies found:")
-		for p := range seenPURLs {
-			fmt.Println(p)
-		}
-
-		// resp, err := http.Get(repoUrl)
-		// if err != nil {
-		// 	fmt.Println("There is some issue while fetching details from the repository URL")
-		// 	return
-		// }
-		// defer resp.Body.Close()
-
-		// body, err := io.ReadAll(resp.Body)
-		// if err != nil {
-		// 	fmt.Println("There is some issue while fetching details from the repository URL")
-		// 	return
-		// }
-
-		// gitrepo := GitHubRepo{}
-		// json.Unmarshal(body, &gitrepo)
-
-		// prettified, err := json.MarshalIndent(gitrepo, "", "\t")
-		// if err != nil {
-		// 	fmt.Println(err)
-		// }
-		// fmt.Println(string(prettified))
-
-		// err = os.WriteFile("repo.json", prettified, 0644)
-		// if err != nil {
-		// 	fmt.Println("There is some issue while saving response to file")
-		// 	return
-		// }
 
 	},
 }
 
 func init() {
+	repositoryCmd.Flags().StringVarP(&repoURL, "url", "u", "", "GitHub repository URL (required)")
+	repositoryCmd.MarkFlagRequired("url")
 	rootCmd.AddCommand(repositoryCmd)
 }

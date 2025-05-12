@@ -4,13 +4,21 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"sort"
 	"strings"
 
 	"github.com/google/go-github/github"
+	"golang.org/x/oauth2"
 )
+
+var supportedFiles = []string{
+	"go.sum",
+	"package-lock.json",
+	"requirements.txt",
+}
 
 func ParseGitHubURL(repoURL string) (owner, repo string, err error) {
 	parsedURL, err := url.Parse(repoURL)
@@ -26,22 +34,13 @@ func ParseGitHubURL(repoURL string) (owner, repo string, err error) {
 	return parts[0], strings.TrimSuffix(parts[1], ".git"), nil
 }
 
-func GetDefaultBranch(ctx context.Context, client *github.Client, owner, repo string) (string, error) {
-	repository, _, err := client.Repositories.Get(ctx, owner, repo)
-	if err != nil {
-		return "", err
-	}
-	return repository.GetDefaultBranch(), nil
-}
-
-func FileExists(ctx context.Context, client *github.Client, owner, repo, branch, file string) bool {
-	_, _, resp, err := client.Repositories.GetContents(ctx, owner, repo, file, &github.RepositoryContentGetOptions{Ref: branch})
+func fileExists(ctx context.Context, client *github.Client, owner, repo, file string) bool {
+	_, _, resp, err := client.Repositories.GetContents(ctx, owner, repo, file, &github.RepositoryContentGetOptions{})
 	return err == nil && resp.StatusCode == 200
 }
 
-func ListCommitsTouchingFile(ctx context.Context, client *github.Client, owner, repo, branch, path string) ([]*github.RepositoryCommit, error) {
+func GetLockFileCommits(ctx context.Context, client *github.Client, owner, repo, path string) ([]*github.RepositoryCommit, error) {
 	opts := &github.CommitsListOptions{
-		SHA:  branch,
 		Path: path,
 		ListOptions: github.ListOptions{
 			PerPage: 100,
@@ -85,85 +84,105 @@ func FetchFileAtCommit(ctx context.Context, client *github.Client, owner, repo, 
 	return content, nil
 }
 
-func ExtractPackages(filename, content string) []string {
+func extractGoPackages(content string) []string {
 	var pkgs []string
-
-	switch filename {
-	case "go.sum":
-		seen := make(map[string]struct{})
-		scanner := bufio.NewScanner(strings.NewReader(content))
-		for scanner.Scan() {
-			fields := strings.Fields(scanner.Text())
-			if len(fields) >= 2 {
-				module := fields[0]
-				version := fields[1]
-				// strip /go.mod if present
-				if strings.HasSuffix(version, "/go.mod") {
-					version = strings.TrimSuffix(version, "/go.mod")
-				}
-				purl := fmt.Sprintf("pkg:golang/%s@%s", module, version)
-				if _, ok := seen[purl]; !ok {
-					seen[purl] = struct{}{}
-					pkgs = append(pkgs, purl)
-				}
-			}
-		}
-
-	case "requirements.txt":
-		scanner := bufio.NewScanner(strings.NewReader(content))
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-
-			parts := strings.Split(line, "==")
-			if len(parts) == 2 {
-				name := strings.ToLower(strings.TrimSpace(parts[0]))
-				version := strings.TrimSpace(parts[1])
-				purl := fmt.Sprintf("pkg:pypi/%s@%s", name, version)
+	seen := make(map[string]struct{})
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) >= 2 {
+			module := fields[0]
+			version := fields[1]
+			version = strings.TrimSuffix(version, "/go.mod")
+			purl := fmt.Sprintf("pkg:golang/%s@%s", module, version)
+			if _, ok := seen[purl]; !ok {
+				seen[purl] = struct{}{}
 				pkgs = append(pkgs, purl)
 			}
 		}
+	}
+	return pkgs
+}
 
-	case "package-lock.json":
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(content), &data); err == nil {
+func extractNpmPackages(content string) []string {
+	var pkgs []string
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(content), &data); err == nil {
 
-			// Try v2+ format (npm 7+)
-			if packages, ok := data["packages"].(map[string]interface{}); ok {
-				for pathKey, val := range packages {
-					if pathKey == "" || pathKey == "node_modules" {
-						continue // skip root entry
-					}
-					if meta, ok := val.(map[string]interface{}); ok {
-						name := strings.TrimPrefix(pathKey, "node_modules/")
-						version, _ := meta["version"].(string)
-						if name != "" && version != "" {
-							purl := fmt.Sprintf("pkg:npm/%s@%s", name, version)
-							pkgs = append(pkgs, purl)
-						}
+		if packages, ok := data["packages"].(map[string]interface{}); ok {
+			for pathKey, val := range packages {
+				if pathKey == "" || pathKey == "node_modules" {
+					continue // skip root entry
+				}
+				if meta, ok := val.(map[string]interface{}); ok {
+					name := strings.TrimPrefix(pathKey, "node_modules/")
+					version, _ := meta["version"].(string)
+					if name != "" && version != "" {
+						purl := fmt.Sprintf("pkg:npm/%s@%s", name, version)
+						pkgs = append(pkgs, purl)
 					}
 				}
 			}
 		}
-
 	}
 
 	return pkgs
 }
 
-func DiffPkgLists(oldPkgs, newPkgs []string) []string {
-	oldMap := make(map[string]struct{})
-	for _, p := range oldPkgs {
-		oldMap[p] = struct{}{}
-	}
+func extractPythonPackages(content string) []string {
 
-	var added []string
-	for _, p := range newPkgs {
-		if _, exists := oldMap[p]; !exists {
-			added = append(added, p)
+	var pkgs []string
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.Split(line, "==")
+		if len(parts) == 2 {
+			name := strings.ToLower(strings.TrimSpace(parts[0]))
+			version := strings.TrimSpace(parts[1])
+			purl := fmt.Sprintf("pkg:pypi/%s@%s", name, version)
+			pkgs = append(pkgs, purl)
 		}
 	}
-	return added
+	return pkgs
+
+}
+
+func ExtractPackages(filename, content string) []string {
+	var pkgs []string
+
+	switch filename {
+	case "go.sum":
+		pkgs = extractGoPackages(content)
+
+	case "requirements.txt":
+		pkgs = extractPythonPackages(content)
+
+	case "package-lock.json":
+		pkgs = extractNpmPackages(content)
+	}
+
+	return pkgs
+}
+
+func NewGitHubClient(ctx context.Context, token string) *github.Client {
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	return github.NewClient(tc)
+}
+
+func FindLockfile(ctx context.Context, client *github.Client, owner, repo string) (string, error) {
+	for _, file := range supportedFiles {
+		if !fileExists(ctx, client, owner, repo, file) {
+			fmt.Printf("Skipping %s: not found\n", file)
+		} else {
+			return file, nil
+		}
+	}
+	return "", errors.New("lockfile not supported or does not exist")
 }
