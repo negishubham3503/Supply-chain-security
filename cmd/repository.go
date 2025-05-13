@@ -58,7 +58,7 @@ var repositoryCmd = &cobra.Command{
 
 		for i, commit := range commits {
 			sha := commit.GetSHA()
-			commit_author := commit.GetCommit().GetAuthor().GetEmail()
+			commit_author := commit.GetCommit().GetAuthor().GetLogin()
 			commit_date := commit.GetCommit().GetAuthor().GetDate()
 
 			content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)

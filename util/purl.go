@@ -7,10 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
 	"strings"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v72/github"
 	"golang.org/x/oauth2"
 )
 
@@ -60,12 +59,6 @@ func GetLockFileCommits(ctx context.Context, client *github.Client, owner, repo,
 		}
 		opts.Page = resp.NextPage
 	}
-
-	// newest first, reverse to compare oldest to newest
-	sort.Slice(allCommits, func(i, j int) bool {
-		return allCommits[i].GetCommit().GetCommitter().GetDate().Before(
-			allCommits[j].GetCommit().GetCommitter().GetDate())
-	})
 
 	return allCommits, nil
 }

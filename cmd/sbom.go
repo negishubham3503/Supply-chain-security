@@ -47,8 +47,9 @@ type GitHubSBOM struct {
 }
 
 var sbomCmd = &cobra.Command{
-	Use:  "sbom",
-	Long: "Enter your repository URL to retrieve SPDX format SBOM",
+	Use:   "sbom",
+	Short: "Get SBOM from repo",
+	Long:  "Enter your repository URL to retrieve SPDX format SBOM",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		parsedUrl, err := url.Parse(args[0])
@@ -95,5 +96,7 @@ var sbomCmd = &cobra.Command{
 }
 
 func init() {
+	sbomCmd.Flags().StringVarP(&repoURL, "url", "u", "", "GitHub repository URL (required)")
+	sbomCmd.MarkFlagRequired("url")
 	rootCmd.AddCommand(sbomCmd)
 }
