@@ -19,6 +19,7 @@ type File struct {
 
 type Commit struct {
 	Sha     string `json:"sha"`
+	Date    string `json:"commit.author.date"`
 	Author  Author `json:"author"`
 	Message string `json:"commit.message"`
 	Files   []File `json:"files"`
@@ -37,11 +38,16 @@ type Package struct {
 }
 
 type CommitRisk struct {
-	score  string
-	commit Commit
+	Score  string
+	Commit Commit
 }
 
 type AuthorRisk struct {
-	score  string
-	author Author
+	Score  string
+	Author Author
+}
+
+type Vulnerability struct {
+	Published string `json:"published"`
+	Id        string `json:"id"`
 }
