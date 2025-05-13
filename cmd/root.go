@@ -8,7 +8,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "vuscs",
+	Use:   "supply-chain-security",
 	Short: "this is a security utilty tool for software composition analysis",
 	Long:  "A CLI-tool to help you find security shortcomings related to dependency, commits and commit authors",
 	Run:   func(cmd *cobra.Command, args []string) {},
