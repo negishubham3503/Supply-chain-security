@@ -38,11 +38,25 @@ func ParsePURL(purl string) (types.Package, error) {
 	return pkg, nil
 }
 
+type osvQueryRequest struct {
+	Package struct {
+		Ecosystem string `json:"ecosystem"`
+		Name      string `json:"name"`
+	} `json:"package"`
+	Version   string `json:"version"`
+	PageToken string `json:"page_token,omitempty"`
+}
+
+// osvQueryResponse represents the structure of the OSV API response
+type osvQueryResponse struct {
+	Vulns         []map[string]interface{} `json:"vulns"`
+	NextPageToken string                   `json:"next_page_token"`
+}
+
 func GetOSVDataByDependencyPurl(purlStr string) ([]map[string]interface{}, error) {
-	pkg, err := ParsePURL(purlStr)
+	parsed, err := ParsePURL(purlStr)
 	if err != nil {
-		fmt.Println("Error parsing PURL:", err)
-		return nil, err
+		return nil, fmt.Errorf("error parsing PURL: %w", err)
 	}
 
 	apiURL := config.OSVApiBaseUrl + "/query"
@@ -50,52 +64,46 @@ func GetOSVDataByDependencyPurl(purlStr string) ([]map[string]interface{}, error
 	pageToken := ""
 
 	for {
-		// Prepare request payload
-		payload := map[string]interface{}{
-			"package": map[string]string{
-				"ecosystem": pkg.Ecosystem,
-				"name":      pkg.Name,
-			},
-			"version": pkg.Version,
+		// Build request payload
+		reqBody := osvQueryRequest{
+			Version:   parsed.Version,
+			PageToken: pageToken,
 		}
+		reqBody.Package.Ecosystem = parsed.Ecosystem
+		reqBody.Package.Name = parsed.Name
 
-		// Add pagination token if available
-		if pageToken != "" {
-			payload["page_token"] = pageToken
-		}
-
-		// Convert payload to JSON
-		jsonData, err := json.Marshal(payload)
+		jsonData, err := json.Marshal(reqBody)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error marshaling request: %w", err)
 		}
 
-		// Make POST request to OSV API
+		// Execute HTTP POST
 		resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error posting to OSV: %w", err)
 		}
 		defer resp.Body.Close()
 
-		// Decode response JSON
-		var response map[string]interface{}
-		err = json.NewDecoder(resp.Body).Decode(&response)
+		// Check HTTP status
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("OSV API error: %s, body: %s", resp.Status, body)
+		}
+
+		// Decode JSON response
+		var osvResp osvQueryResponse
+		err = json.NewDecoder(resp.Body).Decode(&osvResp)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error decoding OSV response: %w", err)
 		}
 
-		// Append retrieved vulnerabilities
-		if vulnerabilities, ok := response["vulns"].([]map[string]interface{}); ok {
-			results = append(results, vulnerabilities...)
-		}
+		results = append(results, osvResp.Vulns...)
 
-		// Check for next page token
-		pageToken, _ = response["next_page_token"].(string)
-
-		// Exit loop if no more pages
-		if pageToken == "" {
+		// Check if more pages exist
+		if osvResp.NextPageToken == "" {
 			break
 		}
+		pageToken = osvResp.NextPageToken
 	}
 
 	return results, nil
@@ -268,26 +276,43 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 			return types.CommitRisk{}, err
 		}
 
+		if len(osvData) == 0 {
+			fmt.Printf("No vulnerabilities found for %s\n", purl)
+			continue
+		}
+
 		for _, vuln := range osvData {
-			vulnPublishTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", vuln["published"].(string))
-			if err != nil {
-				fmt.Println("Error parsing date:", err)
+			// Parse publish time
+			publishedStr, ok := vuln["published"].(string)
+			if !ok {
+				fmt.Println("Missing or invalid 'published' field")
+				continue
 			}
+			vulnPublishTime, err := time.Parse(time.RFC3339, publishedStr)
+			if err != nil {
+				fmt.Printf("Error parsing publish time: %v\n", err)
+				continue
+			}
+
+			// Compare to commit time
 			if commitTime.After(vulnPublishTime) {
-				if affectedPackages, ok := vuln["affected"].([]interface{}); ok {
-					for _, affected := range affectedPackages {
-						if affectedMap, ok := affected.(map[string]interface{}); ok {
-							if ecoSpec, ok := affectedMap["ecosystem_specific"].(map[string]interface{}); ok {
-								commitRisk.Score = commitRisk.Score + ";" + ecoSpec["severity"].(string)
+				// Severity is relevant since result is already filtered by PURL
+				if severity, ok := vuln["severity"].([]interface{}); ok && len(severity) > 0 {
+					for _, s := range severity {
+						if sevMap, ok := s.(map[string]interface{}); ok {
+							if sevVal, ok := sevMap["score"].(string); ok {
+								if commitRisk.Score == "" {
+									commitRisk.Score = sevVal
+								} else {
+									commitRisk.Score += ";" + sevVal
+								}
 							}
-							fmt.Println("---")
 						}
 					}
-				} else {
-					fmt.Println("'affected' field is missing or has an unexpected type")
 				}
 			}
 		}
+
 	}
 
 	return commitRisk, nil
