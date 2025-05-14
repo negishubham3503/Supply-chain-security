@@ -252,40 +252,43 @@ func GetAllVulnerableCommitsinOSVByRepo(repo types.Repo) []types.Commit {
 	return allVulnerableCommits
 }
 
-func EvaluateRiskByCommit(commit types.Commit, purl string) (types.CommitRisk, error) {
+func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk, error) {
 	var commitRisk types.CommitRisk
 	commitRisk.Score = ""
 	commitRisk.Commit = commit
-	commitTime, err := time.Parse(time.RFC3339Nano, commit.Date)
+	commitTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", commit.Date)
 	if err != nil {
 		fmt.Println("Error parsing date:", err)
 		return types.CommitRisk{}, err
 	}
 
-	osvData, err := GetOSVDataByDependencyPurl(purl)
-	if err != nil {
-		return types.CommitRisk{}, err
-	}
-
-	for _, vuln := range osvData {
-		vulnPublishTime, err := time.Parse(time.RFC3339Nano, vuln["published"].(string))
+	for _, purl := range purls {
+		osvData, err := GetOSVDataByDependencyPurl(purl)
 		if err != nil {
-			fmt.Println("Error parsing date:", err)
+			return types.CommitRisk{}, err
 		}
-		if commitTime.After(vulnPublishTime) {
-			if affectedPackages, ok := vuln["affected"].([]interface{}); ok {
-				for _, affected := range affectedPackages {
-					if affectedMap, ok := affected.(map[string]interface{}); ok {
-						if ecoSpec, ok := affectedMap["ecosystem_specific"].(map[string]interface{}); ok {
-							commitRisk.Score = commitRisk.Score + ";" + ecoSpec["severity"].(string)
+
+		for _, vuln := range osvData {
+			vulnPublishTime, err := time.Parse("2006-01-02 15:04:05 -0700 MST", vuln["published"].(string))
+			if err != nil {
+				fmt.Println("Error parsing date:", err)
+			}
+			if commitTime.After(vulnPublishTime) {
+				if affectedPackages, ok := vuln["affected"].([]interface{}); ok {
+					for _, affected := range affectedPackages {
+						if affectedMap, ok := affected.(map[string]interface{}); ok {
+							if ecoSpec, ok := affectedMap["ecosystem_specific"].(map[string]interface{}); ok {
+								commitRisk.Score = commitRisk.Score + ";" + ecoSpec["severity"].(string)
+							}
+							fmt.Println("---")
 						}
-						fmt.Println("---")
 					}
+				} else {
+					fmt.Println("'affected' field is missing or has an unexpected type")
 				}
-			} else {
-				fmt.Println("'affected' field is missing or has an unexpected type")
 			}
 		}
 	}
+
 	return commitRisk, nil
 }

@@ -7,7 +7,7 @@ type Repo struct {
 }
 
 type Author struct {
-	ID   int    `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"login"`
 }
 

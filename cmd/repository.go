@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"supply-chain-security/types"
 	"supply-chain-security/util"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -52,13 +52,26 @@ var repositoryCmd = &cobra.Command{
 			fmt.Printf("Error getting commits: %v\n", err)
 			panic(err)
 		}
-
-		for i, commit := range commits {
+		var allRepoCommitRisks []types.CommitRisk
+		for _, commit := range commits {
 			sha := commit.GetSHA()
 			commit_author := commit.GetCommit().GetAuthor().GetLogin()
 			commit_date := commit.GetCommit().GetAuthor().GetDate()
 
 			content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
+			authorId := fmt.Sprintf("%d", commit.GetAuthor().GetID())
+			author := types.Author{
+				ID:   authorId,
+				Name: commit_author,
+			}
+			var emptyFiles []types.File // need a way to add files here
+			formattedCommit := types.Commit{
+				Sha:     sha,
+				Date:    commit_date.String(),
+				Author:  author,
+				Message: commit.GetCommit().GetMessage(),
+				Files:   emptyFiles, // reference added files here
+			}
 			if err != nil {
 				fmt.Printf("Error reading file at %s: %v\n", sha, err)
 				panic(err)
@@ -67,15 +80,15 @@ var repositoryCmd = &cobra.Command{
 			packageUrls := util.ExtractPackages(file, content)
 
 			// This requires work
-			for _, purl := range packageUrls {
-				//evaluate Risk Code
-				fmt.Printf("Risk for %s - Not Implemented\n", purl)
+			commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls)
+			if err != nil {
+				fmt.Printf("Error evaluating risk for commit %s: %s", sha, err)
+			} else {
+				allRepoCommitRisks = append(allRepoCommitRisks, commitRisk)
 			}
-			fmt.Printf("\n\n-------------\n\n")
-
-			fmt.Printf("Commit - %d | Made by - %s | At time - %s\n", i, commit_author, commit_date.Format(time.RFC3339))
+			//fmt.Printf("Commit - %d | Made by - %s | At time - %s\n", i, commit_author, commit_date.Format(time.RFC3339))
 		}
-
+		fmt.Println(allRepoCommitRisks)
 	},
 }
 
