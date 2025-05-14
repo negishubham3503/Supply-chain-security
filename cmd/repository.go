@@ -16,8 +16,8 @@ var repoURL string
 var repositoryCmd = &cobra.Command{
 	Use:     "repository",
 	Aliases: []string{"repo"},
-	Short:   "Analyze a GitHub repository",
-	Long:    "Enter your repository URL to retrieve general repository overview",
+	Short:   "Analyze the lockfile of repository",
+	Long:    "This command analyzes the commits made to the lockfile of the repository.",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if repoURL == "" {
@@ -25,6 +25,7 @@ var repositoryCmd = &cobra.Command{
 			return
 		}
 
+		fmt.Printf("Starting Github Client...\n")
 		ctx := context.Background()
 		_ = godotenv.Load()
 
@@ -40,6 +41,8 @@ var repositoryCmd = &cobra.Command{
 			panic(err)
 		}
 
+		fmt.Printf("Finding Lockfile in Repo...\n")
+
 		file, err := util.FindLockfile(ctx, client, owner, repo)
 		if err != nil {
 			fmt.Printf("Could not find lockfile || lockfile not supported")
@@ -53,17 +56,27 @@ var repositoryCmd = &cobra.Command{
 			panic(err)
 		}
 		var allRepoCommitRisks []types.CommitRisk
-		for _, commit := range commits {
+
+		fmt.Printf("Beginning to parse the commits\n")
+
+		for i, commit := range commits {
+			fmt.Printf("Commit #%d\n", i)
 			sha := commit.GetSHA()
 			commit_author := commit.GetCommit().GetAuthor().GetLogin()
 			commit_date := commit.GetCommit().GetAuthor().GetDate()
 
 			content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
+			if err != nil {
+				fmt.Printf("Error reading file at %s: %v\n", sha, err)
+				panic(err)
+			}
+
 			authorId := fmt.Sprintf("%d", commit.GetAuthor().GetID())
 			author := types.Author{
 				ID:   authorId,
 				Name: commit_author,
 			}
+
 			var emptyFiles []types.File // need a way to add files here
 			formattedCommit := types.Commit{
 				Sha:     sha,
@@ -72,23 +85,24 @@ var repositoryCmd = &cobra.Command{
 				Message: commit.GetCommit().GetMessage(),
 				Files:   emptyFiles, // reference added files here
 			}
-			if err != nil {
-				fmt.Printf("Error reading file at %s: %v\n", sha, err)
-				panic(err)
-			}
+
+			fmt.Printf("Parsing pURLs\n")
 
 			packageUrls := util.ExtractPackages(file, content)
 
-			// This requires work
+			fmt.Printf("Evaluating risk associated with all the pURLs in this commit\n")
 			commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls)
 			if err != nil {
 				fmt.Printf("Error evaluating risk for commit %s: %s", sha, err)
 			} else {
+				fmt.Printf("✅ Finished evaluated risk\n")
 				allRepoCommitRisks = append(allRepoCommitRisks, commitRisk)
 			}
-			//fmt.Printf("Commit - %d | Made by - %s | At time - %s\n", i, commit_author, commit_date.Format(time.RFC3339))
 		}
-		fmt.Println(allRepoCommitRisks)
+		fmt.Printf("✅ Finished Analysis, here are the results -\n")
+		for i, commitRisk := range allRepoCommitRisks {
+			fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, commitRisk.Score)
+		}
 	},
 }
 

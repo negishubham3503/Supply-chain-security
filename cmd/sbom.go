@@ -13,14 +13,16 @@ import (
 
 var sbomCmd = &cobra.Command{
 	Use:   "sbom",
-	Short: "Get SBOM from repo",
-	Long:  "Enter your repository URL to retrieve SPDX format SBOM",
+	Short: "Get SBOM risk analysis from repo",
+	Long:  "Get a detailed risk analysis of direct and transitive dependencies being used currently in your repository.",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if repoURL == "" {
 			fmt.Println("Error: --url flag is required")
 			return
 		}
+
+		fmt.Printf("Fetching Repository...\n")
 
 		ctx := context.Background()
 		_ = godotenv.Load()
@@ -37,13 +39,19 @@ var sbomCmd = &cobra.Command{
 			panic(err)
 		}
 
+		fmt.Printf("Processing Dependencies...\n")
+
 		purls, err := util.FetchDependenciesViaSBOM(ctx, client, owner, repo)
 		if err != nil {
 			panic("SBOM Dependency didnt work")
 		}
 
+		fmt.Printf("Calculating Risk...\n")
 		for _, purl := range purls {
 			fmt.Printf("%s\n", purl)
+			// risk code will go here
+			//@negishubham
+
 		}
 	},
 }
