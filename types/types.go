@@ -7,7 +7,7 @@ type Repo struct {
 }
 
 type Author struct {
-	ID   int    `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"login"`
 }
 
@@ -19,6 +19,7 @@ type File struct {
 
 type Commit struct {
 	Sha     string `json:"sha"`
+	Date    string `json:"commit.author.date"`
 	Author  Author `json:"author"`
 	Message string `json:"commit.message"`
 	Files   []File `json:"files"`
@@ -34,4 +35,19 @@ type Package struct {
 	Name      string
 	Version   string
 	Ecosystem string
+}
+
+type CommitRisk struct {
+	Score  string
+	Commit Commit
+}
+
+type AuthorRisk struct {
+	Score  string
+	Author Author
+}
+
+type Vulnerability struct {
+	Published string `json:"published"`
+	Id        string `json:"id"`
 }
