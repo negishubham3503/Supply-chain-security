@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"supply-chain-security/config"
 	"supply-chain-security/util"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
-
-const baseUrl = config.GithubApiBaseUrl + "repos"
 
 var repoURL string
 
