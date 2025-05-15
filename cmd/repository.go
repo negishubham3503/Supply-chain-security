@@ -83,13 +83,13 @@ var repositoryCmd = &cobra.Command{
 				Name: commit_author,
 			}
 
-			var emptyFiles []types.File // need a way to add files here
+			//var emptyFiles []types.File // need a way to add files here
 			formattedCommit := types.Commit{
 				Sha:     sha,
 				Date:    commit_date.String(),
 				Author:  author,
 				Message: commit.GetCommit().GetMessage(),
-				Files:   emptyFiles, // reference added files here
+				//Files:   emptyFiles, // reference added files here
 			}
 
 			packageUrls := util.ExtractPackages(file, content)
