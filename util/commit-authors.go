@@ -8,6 +8,8 @@ import (
 	"os"
 	"supply-chain-security/config"
 	"supply-chain-security/types"
+
+	"github.com/joho/godotenv"
 )
 
 const baseUrl = config.GithubApiBaseUrl
@@ -58,6 +60,7 @@ func GetAuthorsByRepo(repo types.Repo) []types.Author {
 	page := 1
 
 	for {
+		_ = godotenv.Load()
 		token := os.Getenv("GITHUB_ACCESS_TOKEN")
 		url := fmt.Sprintf("%s/repos/%s/%s/contributors?per_page=100&page=%d", baseUrl, repo.Owner, repo.Name, page)
 		req, err := http.NewRequest("GET", url, nil)
@@ -123,6 +126,26 @@ func EvaluateRiskByAuthor(author types.Author, allCommitRisksInRepo []types.Comm
 		}
 	}
 	return authorRisk
+}
+
+const filePath = "data.json"
+
+func SaveSlice(allRepoCommitRisks []types.CommitRisk) {
+	file, _ := os.Create(filePath)
+	defer file.Close()
+	json.NewEncoder(file).Encode(allRepoCommitRisks)
+}
+
+func LoadSlice() []types.CommitRisk {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return []types.CommitRisk{} // Return empty slice if file doesn't exist
+	}
+	defer file.Close()
+
+	var allRepoCommitRisks []types.CommitRisk
+	json.NewDecoder(file).Decode(&allRepoCommitRisks)
+	return allRepoCommitRisks
 }
 
 // we need to create a database of the authors and its commits and then our underlying script
