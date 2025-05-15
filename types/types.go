@@ -22,7 +22,6 @@ type Commit struct {
 	Date    string `json:"commit.author.date"`
 	Author  Author `json:"author"`
 	Message string `json:"commit.message"`
-	Files   []File `json:"files"`
 }
 
 type SecurityAdvisory struct {
