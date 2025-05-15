@@ -69,6 +69,8 @@ func FetchFileAtCommit(ctx context.Context, client *github.Client, owner, repo, 
 		return "", err
 	}
 
+	fmt.Printf("Fetching Commit Contents...\n")
+
 	content, err := fileContent.GetContent()
 	if err != nil {
 		return "", err
@@ -146,6 +148,8 @@ func extractPythonPackages(content string) []string {
 
 func ExtractPackages(filename, content string) []string {
 	var pkgs []string
+
+	fmt.Printf("Processing Packages Found...\n")
 
 	switch filename {
 	case "go.sum":

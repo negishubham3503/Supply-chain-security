@@ -270,6 +270,8 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 		return types.CommitRisk{}, err
 	}
 
+	fmt.Printf("Starting Risk Analysis of Packages in Commit...\n")
+
 	for _, purl := range purls {
 		osvData, err := GetOSVDataByDependencyPurl(purl)
 		if err != nil {
@@ -277,8 +279,11 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 		}
 
 		if len(osvData) == 0 {
-			fmt.Printf("No vulnerabilities found for %s\n", purl)
+			fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
 			continue
+		} else {
+			fmt.Printf("\r\033[K")
+			fmt.Printf("Vunerability Detected for %s\n", purl)
 		}
 
 		for _, vuln := range osvData {
@@ -314,6 +319,7 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 		}
 
 	}
+	fmt.Printf("\n✅ Risk Analysis of Packages in Commit Finished\n")
 
 	return commitRisk, nil
 }

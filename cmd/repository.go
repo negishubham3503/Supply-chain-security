@@ -25,7 +25,7 @@ var repositoryCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("Starting Github Client...\n")
+		fmt.Printf("Starting Authenticated Github Client...\n")
 		ctx := context.Background()
 		_ = godotenv.Load()
 
@@ -35,6 +35,7 @@ var repositoryCmd = &cobra.Command{
 		}
 
 		client := util.NewGitHubClient(ctx, token)
+		fmt.Printf("✅ Github Client Started\n")
 
 		owner, repo, err := util.ParseGitHubURL(repoURL)
 		if err != nil {
@@ -49,15 +50,20 @@ var repositoryCmd = &cobra.Command{
 			panic(err)
 		}
 
-		fmt.Printf("\nChecking commits for %s\n", file)
+		fmt.Printf("✅ Lockfile Found --> %s\n", file)
+
+		fmt.Printf("Finding commits in %s\n", file)
 		commits, err := util.GetLockFileCommits(ctx, client, owner, repo, file)
 		if err != nil {
 			fmt.Printf("Error getting commits: %v\n", err)
 			panic(err)
 		}
+
+		fmt.Printf("✅ Commits Found\n")
+
 		var allRepoCommitRisks []types.CommitRisk
 
-		fmt.Printf("Beginning to parse the commits\n")
+		fmt.Printf("Starting Commits Analysis...\n")
 
 		for i, commit := range commits {
 			fmt.Printf("Commit #%d\n", i)
@@ -86,20 +92,16 @@ var repositoryCmd = &cobra.Command{
 				Files:   emptyFiles, // reference added files here
 			}
 
-			fmt.Printf("Parsing pURLs\n")
-
 			packageUrls := util.ExtractPackages(file, content)
 
-			fmt.Printf("Evaluating risk associated with all the pURLs in this commit\n")
 			commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls)
 			if err != nil {
 				fmt.Printf("Error evaluating risk for commit %s: %s", sha, err)
 			} else {
-				fmt.Printf("✅ Finished evaluated risk\n")
 				allRepoCommitRisks = append(allRepoCommitRisks, commitRisk)
 			}
 		}
-		fmt.Printf("✅ Finished Analysis, here are the results -\n")
+		fmt.Printf("✅ Finished Commit Analysis, here are the results -\n")
 		for i, commitRisk := range allRepoCommitRisks {
 			fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, commitRisk.Score)
 		}
