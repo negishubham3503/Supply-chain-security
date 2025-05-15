@@ -13,10 +13,10 @@ This command is used to evaluate risk related to commits and commits authors in 
 ### 2. sbom
 This command is used to generate a SBOM of the Github repository provided. If you do not specify any flags then this returns an sbom of the repository
 #### Flags
-`--version` : Check for outdated dependencies using SBOM
-`--vulnerability`: Check for known vulnerable dependencies using SBOM
-`--json`: Provide output as json
-`--url`: The github url to scan (required)
+* `--version` : Check for outdated dependencies using SBOM
+* `--vulnerability`: Check for known vulnerable dependencies using SBOM
+* `--json`: Provide output as json 
+* `--url`: The github url to scan (required)
 
 ## Instructions on how to run the project
 
@@ -26,7 +26,7 @@ This command is used to generate a SBOM of the Github repository provided. If yo
 1. Make a Github Personal Access Token
     - Go to Settings > Developer Settings > Personal Access Tokens
     - Select Tokens (classic) and click Generate new token
-    - Select the following scopes -> repo, write:packages, and user
+    - Select the following scopes -> repo, write:packages, and user
     - Click generate token and Copy the generated token
 
 2. Define a .env file in the repo and add a Github Personal Access Token
