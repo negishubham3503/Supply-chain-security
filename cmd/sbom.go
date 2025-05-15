@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	versionFlag       bool
+	vulnerabilityFlag bool
+)
+
 var sbomCmd = &cobra.Command{
 	Use:   "sbom",
 	Short: "Get SBOM risk analysis from repo",
@@ -49,37 +54,41 @@ var sbomCmd = &cobra.Command{
 
 		fmt.Printf("✅ Dependencies Processed\n")
 
-		fmt.Printf("Analyzing Dependency Versions...\n")
+		if versionFlag {
+			fmt.Printf("Analyzing Dependency Versions...\n")
 
-		for _, purl := range purls {
-			outdated, latestVersion, err := util.CompareLatestVersion(purl)
-			if err != nil {
-				panic(err)
+			for _, purl := range purls {
+				outdated, latestVersion, err := util.CompareLatestVersion(purl)
+				if err != nil {
+					panic(err)
+				}
+				if outdated {
+					fmt.Printf("A Newer version of %s is available --> %s\n", purl, latestVersion)
+				}
 			}
-			if outdated {
-				fmt.Printf("A Newer version of %s is available --> %s\n", purl, latestVersion)
-			}
+
+			fmt.Printf("✅ Dependency Version Analysis Complete\n")
 		}
 
-		fmt.Printf("✅ Dependency Version Analysis Complete\n")
+		if vulnerabilityFlag {
+			fmt.Printf("Scanning Dependencies for Vulnerabilities\n")
+			for _, purl := range purls {
+				osvData, err := util.GetOSVDataByDependencyPurl(purl)
+				if err != nil {
+					panic(err)
+				}
 
-		fmt.Printf("Scanning Dependencies for Vulnerabilities\n")
-		for _, purl := range purls {
-			osvData, err := util.GetOSVDataByDependencyPurl(purl)
-			if err != nil {
-				panic(err)
+				if len(osvData) == 0 {
+					fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
+					continue
+				} else {
+					fmt.Printf("\r\033[K")
+					fmt.Printf("Vunerability Detected for %s\n", purl)
+				}
 			}
 
-			if len(osvData) == 0 {
-				fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
-				continue
-			} else {
-				fmt.Printf("\r\033[K")
-				fmt.Printf("Vunerability Detected for %s\n", purl)
-			}
+			fmt.Printf("\n✅ Vulnerability Scanning Complete\n")
 		}
-
-		fmt.Printf("\n✅ Vulnerability Scanning Complete\n")
 
 	},
 }
@@ -87,5 +96,8 @@ var sbomCmd = &cobra.Command{
 func init() {
 	sbomCmd.Flags().StringVarP(&repoURL, "url", "u", "", "GitHub repository URL (required)")
 	sbomCmd.MarkFlagRequired("url")
+	sbomCmd.Flags().BoolVarP(&versionFlag, "version", "e", false, "Check if your packages are updated")
+	sbomCmd.Flags().BoolVarP(&vulnerabilityFlag, "vulnerability", "v", false, "Find vulnerabilities in current dependencies")
+
 	rootCmd.AddCommand(sbomCmd)
 }
