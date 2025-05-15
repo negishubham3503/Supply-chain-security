@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"supply-chain-security/types"
 	"supply-chain-security/util"
+
+	"strconv"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -68,7 +71,7 @@ var repositoryCmd = &cobra.Command{
 		for i, commit := range commits {
 			fmt.Printf("Commit #%d\n", i)
 			sha := commit.GetSHA()
-			commit_author := commit.GetCommit().GetAuthor().GetLogin()
+			commit_author := commit.GetAuthor().GetLogin()
 			commit_date := commit.GetCommit().GetAuthor().GetDate()
 
 			content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
@@ -78,8 +81,14 @@ var repositoryCmd = &cobra.Command{
 			}
 
 			authorId := fmt.Sprintf("%d", commit.GetAuthor().GetID())
+			authorID, err := strconv.Atoi(authorId)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+
 			author := types.Author{
-				ID:   authorId,
+				ID:   authorID,
 				Name: commit_author,
 			}
 
@@ -105,7 +114,52 @@ var repositoryCmd = &cobra.Command{
 		for i, commitRisk := range allRepoCommitRisks {
 			fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, commitRisk.Score)
 		}
+
+		saveSlice(allRepoCommitRisks)
+
+		fmt.Printf("Starting Author Risk Analysis...\n")
+		var repository types.Repo
+		repository.Name = repo
+		repository.Owner = owner
+		authorList := util.GetAuthorsByRepo(repository)
+
+		fmt.Println(authorList)
+
+		var allAuthorsRisk []types.AuthorRisk
+		allRepoCommitRisks = loadSlice()
+		for _, author := range authorList {
+			fmt.Printf("Author #%s\n", author.Name)
+			authorRisk := util.EvaluateRiskByAuthor(author, allRepoCommitRisks)
+			allAuthorsRisk = append(allAuthorsRisk, authorRisk)
+		}
+
+		fmt.Printf("✅ Finished Author Risk Analysis, here are the results -\n")
+		for i, authorRisk := range allAuthorsRisk {
+			fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, authorRisk.Score)
+		}
 	},
+}
+
+//saving commit risk data in file for time efficiency while computing author risk
+
+const filePath = "data.json"
+
+func saveSlice(allRepoCommitRisks []types.CommitRisk) {
+	file, _ := os.Create(filePath)
+	defer file.Close()
+	json.NewEncoder(file).Encode(allRepoCommitRisks)
+}
+
+func loadSlice() []types.CommitRisk {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return []types.CommitRisk{} // Return empty slice if file doesn't exist
+	}
+	defer file.Close()
+
+	var allRepoCommitRisks []types.CommitRisk
+	json.NewDecoder(file).Decode(&allRepoCommitRisks)
+	return allRepoCommitRisks
 }
 
 func init() {
