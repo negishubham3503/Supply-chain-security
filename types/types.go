@@ -46,7 +46,8 @@ type AuthorRisk struct {
 	Author Author
 }
 
-type Vulnerability struct {
-	Published string `json:"published"`
-	Id        string `json:"id"`
+type VulnerableCommit struct {
+	VulnerabilityId string `json:"id"`
+	CommitSha       string
+	RiskScore       string
 }
