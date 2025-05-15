@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"supply-chain-security/config"
 	"supply-chain-security/types"
 )
@@ -18,8 +19,19 @@ func GetAllRepos() []types.Repo {
 	since := 0 // Start from the beginning
 
 	for {
+		token := os.Getenv("GITHUB_ACCESS_TOKEN")
 		url := fmt.Sprintf("%s/repositories?since=%d", baseUrl, since)
-		resp, err := http.Get(url)
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			os.Exit(1)
+		}
+
+		req.Header.Add("Authorization", "token "+token)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println("Error fetching repositories:", err)
 			break
@@ -46,8 +58,18 @@ func GetAuthorsByRepo(repo types.Repo) []types.Author {
 	page := 1
 
 	for {
+		token := os.Getenv("GITHUB_ACCESS_TOKEN")
 		url := fmt.Sprintf("%s/repos/%s/%s/contributors?per_page=100&page=%d", baseUrl, repo.Owner, repo.Name, page)
-		resp, err := http.Get(url)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			os.Exit(1)
+		}
+
+		req.Header.Add("Authorization", "token "+token)
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println("Error fetching authors for the provided repo: ", repo.Name, err)
 			break
@@ -96,6 +118,8 @@ func EvaluateRiskByAuthor(author types.Author, allCommitRisksInRepo []types.Comm
 	for _, commitRisk := range allCommitRisksInRepo {
 		if author == commitRisk.Commit.Author {
 			authorRisk.Score = authorRisk.Score + commitRisk.Score + ";"
+		} else {
+			authorRisk.Score = "No-Risk"
 		}
 	}
 	return authorRisk
