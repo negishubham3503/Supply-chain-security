@@ -89,6 +89,18 @@ func GetReposByAuthor(author types.Author) []types.Repo {
 	return repos
 }
 
+func EvaluateRiskByAuthor(author types.Author, allCommitRisksInRepo []types.CommitRisk) types.AuthorRisk {
+	var authorRisk types.AuthorRisk
+	authorRisk.Author = author
+	authorRisk.Score = ""
+	for _, commitRisk := range allCommitRisksInRepo {
+		if author == commitRisk.Commit.Author {
+			authorRisk.Score = authorRisk.Score + commitRisk.Score + ";"
+		}
+	}
+	return authorRisk
+}
+
 // we need to create a database of the authors and its commits and then our underlying script
 // references the database and gives the rating.
 // To update the database we have to constanlty run the cli in some sort of batch job in clou
