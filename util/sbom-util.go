@@ -2,15 +2,13 @@ package util
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
-	"encoding/json"
-	"net/http"
-
 	"github.com/google/go-github/v72/github"
-
 	"github.com/hashicorp/go-version"
 )
 

@@ -163,20 +163,20 @@ func GetAllCommitsChangesByRepo(repo types.Repo) []types.Commit {
 	return allCommits
 }
 
-func GetVulnerabilityIntroducerCommit(sha string) ([]string, error) {
+func GetVulnerabilityIntroducerCommitRisk(sha string, allVulnerableCommitsWithRisk []types.VulnerableCommit) ([]types.VulnerableCommit, error) {
 	apiURL := config.OSVApiBaseUrl + "/query"
 
 	// Create payload with single commit
 	payload := map[string]string{"commit": sha}
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		return []string{}, err
+		return allVulnerableCommitsWithRisk, err
 	}
 
 	// Make POST request
 	resp, err := http.Post(apiURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return []string{}, err
+		return allVulnerableCommitsWithRisk, err
 	}
 	defer resp.Body.Close()
 
@@ -184,16 +184,18 @@ func GetVulnerabilityIntroducerCommit(sha string) ([]string, error) {
 	var osvResponse map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&osvResponse)
 	if err != nil {
-		return []string{}, err
+		return allVulnerableCommitsWithRisk, err
 	}
 
-	var vulnerableCommitSha []string
+	vulnerableCommits := allVulnerableCommitsWithRisk
 	// Extract vulnerabilities
 	if vulns, ok := osvResponse["vulns"].([]interface{}); ok {
 		for _, vulnData := range vulns {
 			vuln, _ := vulnData.(map[string]interface{})
 			fmt.Println("Vulnerability ID:", vuln["id"])
 			fmt.Println("Details:", vuln["details"])
+
+			vulnId := vuln["id"].(string)
 
 			// Extract affected repositories
 			if affectedArr, ok := vuln["affected"].([]interface{}); ok {
@@ -209,7 +211,21 @@ func GetVulnerabilityIntroducerCommit(sha string) ([]string, error) {
 										event, _ := eventData.(map[string]interface{})
 										if introduced, exists := event["introduced"]; exists {
 											if introducedStr, ok := introduced.(string); ok && introducedStr != "0" {
-												vulnerableCommitSha = append(vulnerableCommitSha, introducedStr) // Append only if introduced is NOT "0"
+												if !contains(vulnerableCommits, introducedStr, vulnId) {
+													var vulnerableCommit types.VulnerableCommit
+													vulnerableCommit.CommitSha = introducedStr
+													vulnerableCommit.VulnerabilityId = vulnId
+													if severity, ok := vuln["severity"].([]interface{}); ok && len(severity) > 0 {
+														for _, s := range severity {
+															if sevMap, ok := s.(map[string]interface{}); ok {
+																if sevVal, ok := sevMap["score"].(string); ok {
+																	vulnerableCommit.RiskScore = sevVal
+																}
+															}
+														}
+													}
+													vulnerableCommits = append(vulnerableCommits, vulnerableCommit)
+												}
 											} else {
 												fmt.Println("Skipping introduced:", introducedStr)
 											}
@@ -224,40 +240,65 @@ func GetVulnerabilityIntroducerCommit(sha string) ([]string, error) {
 		}
 	}
 
-	return vulnerableCommitSha, nil
+	return vulnerableCommits, nil
 }
 
-func GetAllVulnerableCommitsinOSVByRepo(repo types.Repo) []types.Commit {
-	allCommitSHA := GetAllCommitSHAByRepo(repo)
-	var allVulnerableCommitSha []string
+func contains(allVulnerableCommit []types.VulnerableCommit, commitSha string, vulnId string) bool {
+	for _, vulnCommit := range allVulnerableCommit {
+		if vulnCommit.CommitSha == commitSha && vulnCommit.VulnerabilityId == vulnId {
+			return true
+		}
+	}
+	return false
+}
 
-	var allVulnerableCommits []types.Commit
+func GetAllVulnerableCommitsinOSVByRepo(repo types.Repo) []types.CommitRisk {
+	allCommitSHA := GetAllCommitSHAByRepo(repo)
+	var allVulnerableCommitsWithRisk []types.VulnerableCommit
+
+	var allVulnerableCommitRisk []types.CommitRisk
 
 	for _, commitSha := range allCommitSHA {
-		vulnerablesha, err := GetVulnerabilityIntroducerCommit(commitSha)
+		vulnerableCommit, err := GetVulnerabilityIntroducerCommitRisk(commitSha, allVulnerableCommitsWithRisk)
 		if err != nil {
 			fmt.Println("Error:", err)
 		} else {
-			allVulnerableCommitSha = append(allVulnerableCommitSha, vulnerablesha...)
+			allVulnerableCommitsWithRisk = append(allVulnerableCommitsWithRisk, vulnerableCommit...)
 		}
 	}
 
-	seen := make(map[string]bool) // Map to track seen elements
-	var allUniqueVulnerableSha []string
+	groupedByCommitSha := make(map[string][]types.VulnerableCommit)
 
-	for _, sha := range allVulnerableCommitSha {
-		if !seen[sha] { // Only add if not seen before
-			seen[sha] = true
-			allUniqueVulnerableSha = append(allUniqueVulnerableSha, sha)
+	for _, vulnerableCommit := range allVulnerableCommitsWithRisk {
+		groupedByCommitSha[vulnerableCommit.CommitSha] = append(groupedByCommitSha[vulnerableCommit.CommitSha], vulnerableCommit)
+	}
+
+	for commitSha, vulnerabilityIdWithRisk := range groupedByCommitSha {
+		var commitRisk types.CommitRisk
+		commitRisk.Commit = GetAllCommitChangesBySHA(repo, commitSha)
+		combinedRiskScore := ""
+		for _, vulnIdAndRiskScore := range vulnerabilityIdWithRisk {
+			combinedRiskScore += vulnIdAndRiskScore.RiskScore
+		}
+		commitRisk.Score = combinedRiskScore
+		allVulnerableCommitRisk = append(allVulnerableCommitRisk, commitRisk)
+	}
+
+	return allVulnerableCommitRisk
+}
+
+func FormCompleteCombinedCommitRisksByRepo(repo types.Repo, allRepoCommitRisk []types.CommitRisk) []types.CommitRisk {
+	allCodeLevelVulnerableCommitRisks := GetAllVulnerableCommitsinOSVByRepo(repo)
+	allRepoCommitsByCombinedRisk := allRepoCommitRisk
+	for _, codeLevelCommitRisk := range allCodeLevelVulnerableCommitRisks {
+		for _, dependencyCommitRisk := range allRepoCommitsByCombinedRisk {
+			if codeLevelCommitRisk.Commit == dependencyCommitRisk.Commit {
+				dependencyCommitRisk.Score = dependencyCommitRisk.Score + codeLevelCommitRisk.Score + ";"
+			}
 		}
 	}
 
-	for _, commitSha := range allUniqueVulnerableSha {
-		vulnerableCommit := GetAllCommitChangesBySHA(repo, commitSha)
-		allVulnerableCommits = append(allVulnerableCommits, vulnerableCommit)
-	}
-
-	return allVulnerableCommits
+	return allRepoCommitsByCombinedRisk
 }
 
 func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk, error) {
