@@ -1,4 +1,5 @@
 # Supply chain security
+=======================
 This is a command-line tool which can analyze public Github repositories and scan their open-source dependencies to determine risk related to commits and commit authors.
 
 ## Usage -- Commands
@@ -6,17 +7,24 @@ This is a command-line tool which can analyze public Github repositories and sca
 This command is used to evaluate risk related to commits and commits authors in the Github repository provided
 #### Flags
 `--commit` : Analyze commit risk
+
 `--author`: Analyze commit author risk 
+
 `--json`: Provide output as json
+
 `--url`: The github url to scan (required)
 
 ### 2. sbom
 This command is used to generate a SBOM of the Github repository provided. If you do not specify any flags then this returns an sbom of the repository
 #### Flags
-* `--version` : Check for outdated dependencies using SBOM
-* `--vulnerability`: Check for known vulnerable dependencies using SBOM
-* `--json`: Provide output as json 
-* `--url`: The github url to scan (required)
+`--version` : Check for outdated dependencies using SBOM
+
+`--vulnerability`: Check for known vulnerable dependencies using SBOM
+
+`--json`: Provide output as json 
+
+`--url`: The github url to scan (required)
+
 
 ## Instructions on how to run the project
 
