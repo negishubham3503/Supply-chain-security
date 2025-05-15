@@ -14,11 +14,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var repoURL string
+var (
+	repoURL string
+	commit  bool
+	author  bool
+)
 
 var repositoryCmd = &cobra.Command{
-	Use:     "repository",
-	Aliases: []string{"repo"},
+	Use:     "risk",
+	Aliases: []string{"risk"},
 	Short:   "Analyze the lockfile of repository",
 	Long:    "This command analyzes the commits made to the lockfile of the repository.",
 	Run: func(cmd *cobra.Command, args []string) {

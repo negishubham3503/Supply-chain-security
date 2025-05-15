@@ -5,8 +5,8 @@ import (
 )
 
 var riskCmd = &cobra.Command{
-	Use:     "risk",
-	Aliases: []string{"risk"},
+	Use:     "template",
+	Aliases: []string{"template"},
 	Long:    "Enter your repository URL to retrieve the risk rating based on commits or authors",
 	Run:     GetRiskByRepoCommits,
 }

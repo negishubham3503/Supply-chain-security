@@ -15,11 +15,11 @@
 3. Run the executable using the commands and pass it the GITHUB_URL you want to analyze with different commands
 ## Cobra Commands
 `./supply-chain-security sbom --url GITHUB_URL`
-`./supply-chain-security repo --url GITHUB_URL`
+`./supply-chain-security risk --url GITHUB_URL`
 
 ## Cobra Help Commands
 `./supply-chain-security sbom --help`
-`./supply-chain-security repo --help`
+`./supply-chain-security risk --help`
 `./supply-chain-security --help`
 
 

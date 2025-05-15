@@ -59,14 +59,27 @@ var sbomCmd = &cobra.Command{
 			if outdated {
 				fmt.Printf("A Newer version of %s is available --> %s\n", purl, latestVersion)
 			}
-
 		}
 
-		fmt.Printf("Calculating Risk...\n")
-		// risk code will go here
-		//@negishubham
+		fmt.Printf("✅ Dependency Version Analysis Complete\n")
 
-		fmt.Printf("✅ Risk Calculated\n")
+		fmt.Printf("Scanning Dependencies for Vulnerabilities\n")
+		for _, purl := range purls {
+			osvData, err := util.GetOSVDataByDependencyPurl(purl)
+			if err != nil {
+				panic(err)
+			}
+
+			if len(osvData) == 0 {
+				fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
+				continue
+			} else {
+				fmt.Printf("\r\033[K")
+				fmt.Printf("Vunerability Detected for %s\n", purl)
+			}
+		}
+
+		fmt.Printf("\n✅ Vulnerability Scanning Complete\n")
 
 	},
 }
