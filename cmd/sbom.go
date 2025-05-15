@@ -49,13 +49,22 @@ var sbomCmd = &cobra.Command{
 
 		fmt.Printf("✅ Dependencies Processed\n")
 
-		fmt.Printf("Calculating Risk...\n")
+		fmt.Printf("Analyzing Dependency Versions...\n")
+
 		for _, purl := range purls {
-			fmt.Printf("%s\n", purl)
-			// risk code will go here
-			//@negishubham
+			outdated, latestVersion, err := util.CompareLatestVersion(purl)
+			if err != nil {
+				panic(err)
+			}
+			if outdated {
+				fmt.Printf("A Newer version of %s is available --> %s\n", purl, latestVersion)
+			}
 
 		}
+
+		fmt.Printf("Calculating Risk...\n")
+		// risk code will go here
+		//@negishubham
 
 		fmt.Printf("✅ Risk Calculated\n")
 
