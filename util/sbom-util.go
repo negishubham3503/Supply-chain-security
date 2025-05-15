@@ -38,22 +38,31 @@ func detectEcosystemFromLockfile(ctx context.Context, client *github.Client, own
 func FetchDependenciesViaSBOM(ctx context.Context, client *github.Client, owner, repo string) ([]string, error) {
 
 	// Fetch SBOM from GitHub
+	fmt.Printf("Detecting ecosystem in Repo...\n")
 	env, err := detectEcosystemFromLockfile(ctx, client, owner, repo)
 	if err != nil {
 		panic("Lockfile not supported")
 	}
+	fmt.Printf("✅ Ecosystem Detected --> %s\n", env)
+
+	fmt.Printf("Getting SBOM of repo...\n")
 
 	sbom, _, err := client.DependencyGraph.GetSBOM(ctx, owner, repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get SBOM: %w", err)
 	}
 
+	fmt.Printf("✅ SBOM found\n")
+
 	// Parse dependencies
+	fmt.Printf("Processing Dependencies...\n")
+
 	var purls []string
 	for _, pkg := range sbom.GetSBOM().Packages {
 		purl := makePURL(env, pkg.GetName(), pkg.GetVersionInfo())
 		purls = append(purls, purl)
 	}
+	fmt.Printf("✅ Finished Processing Dependencies\n")
 
 	return purls, nil
 }

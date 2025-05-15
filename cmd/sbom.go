@@ -22,7 +22,7 @@ var sbomCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("Fetching Repository...\n")
+		fmt.Printf("Starting Authenticated Github Client...\n")
 
 		ctx := context.Background()
 		_ = godotenv.Load()
@@ -33,6 +33,7 @@ var sbomCmd = &cobra.Command{
 		}
 
 		client := util.NewGitHubClient(ctx, token)
+		fmt.Printf("✅ Github Client Started\n")
 
 		owner, repo, err := util.ParseGitHubURL(repoURL)
 		if err != nil {
@@ -46,6 +47,8 @@ var sbomCmd = &cobra.Command{
 			panic("SBOM Dependency didnt work")
 		}
 
+		fmt.Printf("✅ Dependencies Processed\n")
+
 		fmt.Printf("Calculating Risk...\n")
 		for _, purl := range purls {
 			fmt.Printf("%s\n", purl)
@@ -53,6 +56,9 @@ var sbomCmd = &cobra.Command{
 			//@negishubham
 
 		}
+
+		fmt.Printf("✅ Risk Calculated\n")
+
 	},
 }
 
