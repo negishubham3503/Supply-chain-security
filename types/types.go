@@ -51,3 +51,11 @@ type VulnerableCommit struct {
 	CommitSha       string
 	RiskScore       string
 }
+
+type SCA struct {
+	Repo            string
+	Owner           string
+	DependencyRisks []string
+	CommitRisks     []CommitRisk
+	AuthorRisks     []AuthorRisk
+}
