@@ -259,6 +259,7 @@ func GetAllVulnerableCommitsinOSVByRepo(repo types.Repo) []types.CommitRisk {
 	var allVulnerableCommitRisk []types.CommitRisk
 
 	for _, commitSha := range allCommitSHA {
+		fmt.Printf("Commit #%s\n", commitSha)
 		vulnerableCommit, err := GetVulnerabilityIntroducerCommitRisk(commitSha, allVulnerableCommitsWithRisk)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -343,18 +344,20 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 			// Compare to commit time
 			if commitTime.After(vulnPublishTime) {
 				// Severity is relevant since result is already filtered by PURL
-				if severity, ok := vuln["severity"].([]interface{}); ok && len(severity) > 0 {
-					for _, s := range severity {
-						if sevMap, ok := s.(map[string]interface{}); ok {
-							if sevVal, ok := sevMap["score"].(string); ok {
-								if commitRisk.Score == "" {
-									commitRisk.Score = sevVal
-								} else {
-									commitRisk.Score += ";" + sevVal
-								}
-							}
-						}
-					}
+				if severity, ok := vuln["severity"].([]any); ok && len(severity) > 0 {
+					sevVal := severity[len(severity)-1].(map[string]any)
+					commitRisk.Score += sevVal["score"].(string)
+					// for _, s := range severity {
+					// 	if sevMap, ok := s.(map[string]interface{}); ok {
+					// 		if sevVal, ok := sevMap["score"].(string); ok {
+					// 			if commitRisk.Score == "" {
+					// 				commitRisk.Score = sevVal
+					// 			} else {
+					// 				commitRisk.Score += ";" + sevVal
+					// 			}
+					// 		}
+					// 	}
+					// }
 				}
 			}
 		}

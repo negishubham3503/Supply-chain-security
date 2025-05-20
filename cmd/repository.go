@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"supply-chain-security/types"
 	"supply-chain-security/util"
-
-	"strconv"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -120,9 +119,14 @@ var repositoryCmd = &cobra.Command{
 					allRepoCommitRisks = append(allRepoCommitRisks, commitRisk)
 				}
 			}
+			fmt.Printf("Starting Code level Commit Risk Analysis...\n")
+			var repository types.Repo
+			repository.Name = repo
+			repository.Owner = owner
+			allRepoCommitRisks = util.FormCompleteCombinedCommitRisksByRepo(repository, allRepoCommitRisks)
 			fmt.Printf("✅ Finished Commit Analysis, here are the results -\n")
 			for i, commitRisk := range allRepoCommitRisks {
-				fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, commitRisk.Score)
+				fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, util.GetRiskRating(commitRisk.Score))
 			}
 
 			util.SaveSlice(allRepoCommitRisks)
@@ -151,10 +155,9 @@ var repositoryCmd = &cobra.Command{
 
 			fmt.Printf("✅ Finished Author Risk Analysis, here are the results -\n")
 			for i, authorRisk := range allAuthorsRisk {
-				fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, authorRisk.Score)
+				fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, util.GetRiskRating(authorRisk.Score))
 			}
 		}
-
 	},
 }
 
