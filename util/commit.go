@@ -5,11 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"supply-chain-security/config"
 	"supply-chain-security/types"
 	"time"
+
+	gocvss20 "github.com/pandatix/go-cvss/20"
+	gocvss30 "github.com/pandatix/go-cvss/30"
+	gocvss31 "github.com/pandatix/go-cvss/31"
+	gocvss40 "github.com/pandatix/go-cvss/40"
 )
 
 func ParsePURL(purl string) (types.Package, error) {
@@ -366,4 +374,107 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 	fmt.Printf("\n✅ Risk Analysis of Packages in Commit Finished\n")
 
 	return commitRisk, nil
+}
+
+func GetRiskRating(riskCVSSVectorCollated string) string {
+	var riskScore string
+
+	if riskCVSSVectorCollated == "" {
+		return "0"
+	} else {
+		//var vectorRE = regexp.MustCompile(`CVSS:(?:2\.0|3\.[01]|4\.0)/[A-Z0-9:/.-]+?(?=CVSS:|$)`)
+		riskCVSSVectorSlice := strings.Fields(strings.TrimSpace(strings.ReplaceAll(riskCVSSVectorCollated, "CVSS:", " CVSS:")))
+		var cvssScoreSlice []float64
+		for _, CVSSVector := range riskCVSSVectorSlice {
+			cvssScore, _, err := scoreRiskVector(CVSSVector)
+			if err != nil {
+				continue
+			}
+			cvssScoreSlice = append(cvssScoreSlice, cvssScore)
+			//fmt.Printf("CVSS %s – Base score %.1f – %s\n", ver, cvssScore, CVSSVector)
+		}
+		riskScore = strconv.FormatFloat(calculateRiskScore(cvssScoreSlice, config.RiskScoreConstant, config.HighRiskThreshold), 'f', 2, 64)
+	}
+	return riskScore
+}
+
+func scoreRiskVector(vec string) (float64, string, error) {
+	switch {
+	case regexp.MustCompile(`^CVSS:4\.0/`).MatchString(vec):
+		m, err := gocvss40.ParseVector(vec)
+		if err != nil {
+			return 0, "4.0", err
+		}
+		return m.Score(), "4.0", nil
+	case regexp.MustCompile(`^CVSS:2\.0/`).MatchString(vec):
+		m, err := gocvss20.ParseVector(vec)
+		if err != nil {
+			return 0, "2.0", err
+		}
+		return m.BaseScore(), "2.0", nil
+	case regexp.MustCompile(`^CVSS:3\.0/`).MatchString(vec):
+		m, err := gocvss30.ParseVector(vec)
+		if err != nil {
+			return 0, "3.0", err
+		}
+		return m.BaseScore(), "3.0", nil
+	default: // covers 3.0 and 3.1
+		m, err := gocvss31.ParseVector(vec)
+		if err != nil {
+			return 0, "3.1", err
+		}
+		return m.BaseScore(), "3.1", nil
+	}
+}
+
+// assignWeight returns a severity-based weight for a given CVSS score.
+// The weighting scheme is as follows:
+//   - CVSS 9.0–10.0 → Weight: 1.5
+//   - CVSS 7.0–8.9  → Weight: 1.2
+//   - CVSS 4.0–6.9  → Weight: 1.0
+//   - CVSS 1.0–3.9  → Weight: 0.8
+func assignWeight(score float64) float64 {
+	if score >= 9.0 {
+		return 1.5
+	} else if score >= 7.0 {
+		return 1.2
+	} else if score >= 4.0 {
+		return 1.0
+	} else {
+		return 0.8
+	}
+}
+
+// riskScore computes the composite risk score given a slice of CVSS scores.
+// It calculates the weighted average (WAvg) on the fly, counts the total number (N)
+// and the high-risk count (HR, scores >= highRiskThreshold), then applies the formula:
+// Risk Score = WAvg * ln(1 + N) * [1 + c * (N-1) * (HR/N)]
+func calculateRiskScore(scores []float64, c float64, highRiskThreshold float64) float64 {
+	N := float64(len(scores))
+	if N == 0 {
+		return 0
+	}
+
+	var weightedSum, totalWeight float64
+	HR := 0
+
+	for _, score := range scores {
+		weight := assignWeight(score)
+		weightedSum += score * weight
+		totalWeight += weight
+		// Count high-risk vulnerabilities.
+		if score >= highRiskThreshold {
+			HR++
+		}
+	}
+
+	// Compute weighted average CVSS.
+	WAvg := weightedSum / totalWeight
+
+	// Calculate bonus multiplier.
+	// For commits with a single vulnerability, (N-1) equals 0 and the multiplier stays 1.
+	bonusMultiplier := 1 + c*(N-1)*(float64(HR)/N)
+
+	// Final risk score calculation with a logarithmic factor.
+	return WAvg * math.Log(1+N) * bonusMultiplier
 }

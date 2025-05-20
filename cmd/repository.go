@@ -26,6 +26,8 @@ var repositoryCmd = &cobra.Command{
 	Long:    "This command analyzes the commits made to the lockfile of the repository.",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		var completeSCAJson types.SCA
+
 		if repoURL == "" {
 			fmt.Println("Error: --url or -u flag is required")
 			return
@@ -54,6 +56,8 @@ var repositoryCmd = &cobra.Command{
 				panic(err)
 			}
 
+			completeSCAJson.Repo = repo
+			completeSCAJson.Owner = owner
 			fmt.Printf("Finding Lockfile in Repo...\n")
 
 			file, err := util.FindLockfile(ctx, client, owner, repo)
@@ -126,10 +130,12 @@ var repositoryCmd = &cobra.Command{
 			allRepoCommitRisks = util.FormCompleteCombinedCommitRisksByRepo(repository, allRepoCommitRisks)
 			fmt.Printf("✅ Finished Commit Analysis, here are the results -\n")
 			for i, commitRisk := range allRepoCommitRisks {
-				fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, util.GetRiskRating(commitRisk.Score))
+				allRepoCommitRisks[i].Score = util.GetRiskRating(commitRisk.Score)
+				//fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, util.GetRiskRating(commitRisk.Score))
 			}
 
-			util.SaveSlice(allRepoCommitRisks)
+			completeSCAJson.CommitRisks = allRepoCommitRisks
+			util.SaveSlice(allRepoCommitRisks, "data.json")
 		}
 
 		if commitAuthorFlag {
@@ -155,8 +161,12 @@ var repositoryCmd = &cobra.Command{
 
 			fmt.Printf("✅ Finished Author Risk Analysis, here are the results -\n")
 			for i, authorRisk := range allAuthorsRisk {
-				fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, util.GetRiskRating(authorRisk.Score))
+				allAuthorsRisk[i].Score = util.GetAuthorRiskScore(authorRisk.Score)
+				fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, allAuthorsRisk[i].Score)
 			}
+
+			completeSCAJson.AuthorRisks = allAuthorsRisk
+			util.SaveSlice(completeSCAJson, "sca.json")
 		}
 	},
 }

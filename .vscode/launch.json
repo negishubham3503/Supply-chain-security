@@ -18,7 +18,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}",
-            "args": ["risk", "--commit", "--url", "https://github.com/CyberShanks/app-sec"]
+            "args": ["risk", "--author", "--url", "https://github.com/CyberShanks/app-sec"]
         }
     ]
 }
