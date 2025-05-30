@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"supply-chain-security/util"
@@ -55,6 +56,7 @@ var sbomCmd = &cobra.Command{
 		fmt.Printf("✅ Dependencies Processed\n")
 
 		if versionFlag {
+			var versionPackages []util.Purl
 			fmt.Printf("Analyzing Dependency Versions...\n")
 
 			for _, purl := range purls {
@@ -62,15 +64,31 @@ var sbomCmd = &cobra.Command{
 				if err != nil {
 					panic(err)
 				}
-				if outdated {
+				if outdated && !jsonFlag {
 					fmt.Printf("A Newer version of %s is available --> %s\n", purl, latestVersion)
 				}
+				if outdated && jsonFlag {
+					// Create a map for JSON output
+					versionPackages = append(versionPackages, util.Purl{
+						Name:          purl,
+						Outdated:      outdated,
+						LatestVersion: latestVersion,
+					})
+				}
+			}
+
+			if jsonFlag {
+				file, _ := os.Create("outdated.json")
+				defer file.Close()
+				json.NewEncoder(file).Encode(versionPackages)
+				fmt.Println("Outdated packages information saved to outdated.json")
 			}
 
 			fmt.Printf("✅ Dependency Version Analysis Complete\n")
 		}
 
 		if vulnerabilityFlag {
+			vuln := []string{}
 			fmt.Printf("Scanning Dependencies for Vulnerabilities\n")
 			for _, purl := range purls {
 				osvData, err := util.GetOSVDataByDependencyPurl(purl)
@@ -78,18 +96,33 @@ var sbomCmd = &cobra.Command{
 					panic(err)
 				}
 
-				if len(osvData) == 0 {
-					fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
-					continue
+				if !jsonFlag {
+					if len(osvData) == 0 {
+						fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
+						continue
+					} else {
+						fmt.Printf("\r\033[K")
+						fmt.Printf("Vunerability Detected for %s\n", purl)
+					}
 				} else {
-					fmt.Printf("\r\033[K")
-					fmt.Printf("Vunerability Detected for %s\n", purl)
+					if len(osvData) == 0 {
+						continue
+					} else {
+						vuln = append(vuln, purl)
+					}
 				}
 			}
 
 			fmt.Printf("\n✅ Vulnerability Scanning Complete\n")
-		}
 
+			if jsonFlag {
+				file, _ := os.Create("vulnerable.json")
+				defer file.Close()
+				json.NewEncoder(file).Encode(vuln)
+				fmt.Println("Vulnerable packages information saved to vulnerable.json")
+			}
+
+		}
 	},
 }
 
@@ -98,6 +131,7 @@ func init() {
 	sbomCmd.MarkFlagRequired("url")
 	sbomCmd.Flags().BoolVarP(&versionFlag, "version", "e", false, "Check if your packages are updated")
 	sbomCmd.Flags().BoolVarP(&vulnerabilityFlag, "vulnerability", "v", false, "Find vulnerabilities in current dependencies")
+	sbomCmd.Flags().BoolVarP(&jsonFlag, "json", "j", false, "Output in JSON")
 
 	rootCmd.AddCommand(sbomCmd)
 }

@@ -12,6 +12,12 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
+type Purl struct {
+	Name          string
+	Outdated      bool
+	LatestVersion string
+}
+
 func makePURL(pkgType, name, version string) string {
 
 	pkgType = strings.ToLower(strings.TrimSpace(pkgType))
