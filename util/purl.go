@@ -173,10 +173,14 @@ func NewGitHubClient(ctx context.Context, token string) *github.Client {
 	return github.NewClient(tc)
 }
 
-func FindLockfile(ctx context.Context, client *github.Client, owner, repo string) (string, error) {
+func FindLockfile(ctx context.Context, client *github.Client, owner, repo string, jsonFlag bool) (string, error) {
 	for _, file := range supportedFiles {
 		if !fileExists(ctx, client, owner, repo, file) {
-			fmt.Printf("Skipping %s: not found\n", file)
+			if !jsonFlag {
+				fmt.Printf("Skipping %s: not found\n", file)
+			} else {
+				continue
+			}
 		} else {
 			return file, nil
 		}

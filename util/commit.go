@@ -310,7 +310,7 @@ func FormCompleteCombinedCommitRisksByRepo(repo types.Repo, allRepoCommitRisk []
 	return allRepoCommitsByCombinedRisk
 }
 
-func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk, error) {
+func EvaluateRiskByCommit(commit types.Commit, purls []string, jsonFlag bool) (types.CommitRisk, error) {
 	var commitRisk types.CommitRisk
 	commitRisk.Score = ""
 	commitRisk.Commit = commit
@@ -320,20 +320,22 @@ func EvaluateRiskByCommit(commit types.Commit, purls []string) (types.CommitRisk
 		return types.CommitRisk{}, err
 	}
 
-	fmt.Printf("Starting Risk Analysis of Packages in Commit...\n")
+	fmt.Printf("Starting Risk Analysis of Packages in Commit...")
 
 	for _, purl := range purls {
 		osvData, err := GetOSVDataByDependencyPurl(purl)
 		if err != nil {
 			return types.CommitRisk{}, err
 		}
+		if !jsonFlag {
 
-		if len(osvData) == 0 {
-			fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
-			continue
-		} else {
-			fmt.Printf("\r\033[K")
-			fmt.Printf("Vunerability Detected for %s\n", purl)
+			if len(osvData) == 0 {
+				fmt.Printf("\r\033[2KNo vulnerabilities found for %s", purl)
+				continue
+			} else {
+				fmt.Printf("\r\033[K")
+				fmt.Printf("Vunerability Detected for %s\n", purl)
+			}
 		}
 
 		for _, vuln := range osvData {

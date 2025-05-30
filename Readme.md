@@ -1,5 +1,4 @@
 # Supply chain security
-=======================
 This is a command-line tool which can analyze public Github repositories and scan their open-source dependencies to determine risk related to commits and commit authors.
 
 # Usage: Commands

@@ -22,8 +22,9 @@ var (
 var repositoryCmd = &cobra.Command{
 	Use:     "risk",
 	Aliases: []string{"risk"},
-	Short:   "Analyze the lockfile of repository",
-	Long:    "This command analyzes the commits made to the lockfile of the repository.",
+	Short:   "Analyze risk associated with a repository",
+	Long:    "Analyze risk associated with a repository by evaluating commits and authors.",
+	Example: "supply-chain-security risk --url",
 	Run: func(cmd *cobra.Command, args []string) {
 
 		var completeSCAJson types.SCA
@@ -60,7 +61,7 @@ var repositoryCmd = &cobra.Command{
 			completeSCAJson.Owner = owner
 			fmt.Printf("Finding Lockfile in Repo...\n")
 
-			file, err := util.FindLockfile(ctx, client, owner, repo)
+			file, err := util.FindLockfile(ctx, client, owner, repo, jsonFlag)
 			if err != nil {
 				fmt.Printf("Could not find lockfile || lockfile not supported")
 				panic(err)
@@ -116,7 +117,7 @@ var repositoryCmd = &cobra.Command{
 
 				packageUrls := util.ExtractPackages(file, content)
 
-				commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls)
+				commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls, jsonFlag)
 				if err != nil {
 					fmt.Printf("Error evaluating risk for commit %s: %s", sha, err)
 				} else {
@@ -128,17 +129,23 @@ var repositoryCmd = &cobra.Command{
 			repository.Name = repo
 			repository.Owner = owner
 			allRepoCommitRisks = util.FormCompleteCombinedCommitRisksByRepo(repository, allRepoCommitRisks)
-			fmt.Printf("✅ Finished Commit Analysis, here are the results -\n")
+			fmt.Printf("✅ Finished Commit Analysis\n")
 			for i, commitRisk := range allRepoCommitRisks {
 				allRepoCommitRisks[i].Score = util.GetRiskRating(commitRisk.Score)
-				//fmt.Printf("%d | %s | %s\n", i, commitRisk.Commit.Sha, util.GetRiskRating(commitRisk.Score))
 			}
 
 			completeSCAJson.CommitRisks = allRepoCommitRisks
 			util.SaveSlice(allRepoCommitRisks, "data.json")
+			fmt.Println("✅ data.json file has been generated.")
+			fmt.Println("You can now run `supply-chain-security risk --author` to analyze commit author risks.")
+
 		}
 
 		if commitAuthorFlag {
+			if _, err := os.Stat("data.json"); os.IsNotExist(err) {
+				fmt.Println("Error: data.json file not found. Please run with --commit first.")
+				return
+			}
 			fmt.Printf("Starting Author Risk Analysis...\n")
 			owner, repo, err := util.ParseGitHubURL(repoURL)
 			if err != nil {
@@ -149,24 +156,33 @@ var repositoryCmd = &cobra.Command{
 			repository.Owner = owner
 			authorList := util.GetAuthorsByRepo(repository)
 
-			fmt.Println(authorList)
+			if !jsonFlag {
+				fmt.Println(authorList)
+			}
 
 			var allAuthorsRisk []types.AuthorRisk
 			allRepoCommitRisks := util.LoadSlice()
 			for _, author := range authorList {
-				fmt.Printf("Author #%s\n", author.Name)
+				if !jsonFlag {
+					fmt.Printf("Author #%s\n", author.Name)
+				}
 				authorRisk := util.EvaluateRiskByAuthor(author, allRepoCommitRisks)
 				allAuthorsRisk = append(allAuthorsRisk, authorRisk)
 			}
 
-			fmt.Printf("✅ Finished Author Risk Analysis, here are the results -\n")
+			fmt.Printf("✅ Finished Author Risk Analysis\n")
 			for i, authorRisk := range allAuthorsRisk {
 				allAuthorsRisk[i].Score = util.GetAuthorRiskScore(authorRisk.Score)
-				fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, allAuthorsRisk[i].Score)
+				if !jsonFlag {
+					fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, allAuthorsRisk[i].Score)
+				}
 			}
 
 			completeSCAJson.AuthorRisks = allAuthorsRisk
-			util.SaveSlice(completeSCAJson, "sca.json")
+			if jsonFlag {
+				util.SaveSlice(completeSCAJson, "sca.json")
+				fmt.Println("✅ sca.json file has been generated.")
+			}
 		}
 	},
 }
