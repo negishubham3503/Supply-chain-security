@@ -1,174 +1,198 @@
 package cmd
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
-	"time"
+	"strconv"
+	"supply-chain-security/types"
+	"supply-chain-security/util"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
-type GitHubRepo struct {
-	ID       int    `json:"id"`
-	NodeID   string `json:"node_id"`
-	Name     string `json:"name"`
-	FullName string `json:"full_name"`
-	Private  bool   `json:"private"`
-	Owner    struct {
-		Login             string `json:"login"`
-		ID                int    `json:"id"`
-		NodeID            string `json:"node_id"`
-		AvatarURL         string `json:"avatar_url"`
-		GravatarID        string `json:"gravatar_id"`
-		URL               string `json:"url"`
-		HTMLURL           string `json:"html_url"`
-		FollowersURL      string `json:"followers_url"`
-		FollowingURL      string `json:"following_url"`
-		GistsURL          string `json:"gists_url"`
-		StarredURL        string `json:"starred_url"`
-		SubscriptionsURL  string `json:"subscriptions_url"`
-		OrganizationsURL  string `json:"organizations_url"`
-		ReposURL          string `json:"repos_url"`
-		EventsURL         string `json:"events_url"`
-		ReceivedEventsURL string `json:"received_events_url"`
-		Type              string `json:"type"`
-		UserViewType      string `json:"user_view_type"`
-		SiteAdmin         bool   `json:"site_admin"`
-	} `json:"owner"`
-	HTMLURL          string    `json:"html_url"`
-	Description      string    `json:"description"`
-	Fork             bool      `json:"fork"`
-	URL              string    `json:"url"`
-	ForksURL         string    `json:"forks_url"`
-	KeysURL          string    `json:"keys_url"`
-	CollaboratorsURL string    `json:"collaborators_url"`
-	TeamsURL         string    `json:"teams_url"`
-	HooksURL         string    `json:"hooks_url"`
-	IssueEventsURL   string    `json:"issue_events_url"`
-	EventsURL        string    `json:"events_url"`
-	AssigneesURL     string    `json:"assignees_url"`
-	BranchesURL      string    `json:"branches_url"`
-	TagsURL          string    `json:"tags_url"`
-	BlobsURL         string    `json:"blobs_url"`
-	GitTagsURL       string    `json:"git_tags_url"`
-	GitRefsURL       string    `json:"git_refs_url"`
-	TreesURL         string    `json:"trees_url"`
-	StatusesURL      string    `json:"statuses_url"`
-	LanguagesURL     string    `json:"languages_url"`
-	StargazersURL    string    `json:"stargazers_url"`
-	ContributorsURL  string    `json:"contributors_url"`
-	SubscribersURL   string    `json:"subscribers_url"`
-	SubscriptionURL  string    `json:"subscription_url"`
-	CommitsURL       string    `json:"commits_url"`
-	GitCommitsURL    string    `json:"git_commits_url"`
-	CommentsURL      string    `json:"comments_url"`
-	IssueCommentURL  string    `json:"issue_comment_url"`
-	ContentsURL      string    `json:"contents_url"`
-	CompareURL       string    `json:"compare_url"`
-	MergesURL        string    `json:"merges_url"`
-	ArchiveURL       string    `json:"archive_url"`
-	DownloadsURL     string    `json:"downloads_url"`
-	IssuesURL        string    `json:"issues_url"`
-	PullsURL         string    `json:"pulls_url"`
-	MilestonesURL    string    `json:"milestones_url"`
-	NotificationsURL string    `json:"notifications_url"`
-	LabelsURL        string    `json:"labels_url"`
-	ReleasesURL      string    `json:"releases_url"`
-	DeploymentsURL   string    `json:"deployments_url"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	PushedAt         time.Time `json:"pushed_at"`
-	GitURL           string    `json:"git_url"`
-	SSHURL           string    `json:"ssh_url"`
-	CloneURL         string    `json:"clone_url"`
-	SvnURL           string    `json:"svn_url"`
-	Homepage         string    `json:"homepage"`
-	Size             int       `json:"size"`
-	StargazersCount  int       `json:"stargazers_count"`
-	WatchersCount    int       `json:"watchers_count"`
-	Language         string    `json:"language"`
-	HasIssues        bool      `json:"has_issues"`
-	HasProjects      bool      `json:"has_projects"`
-	HasDownloads     bool      `json:"has_downloads"`
-	HasWiki          bool      `json:"has_wiki"`
-	HasPages         bool      `json:"has_pages"`
-	HasDiscussions   bool      `json:"has_discussions"`
-	ForksCount       int       `json:"forks_count"`
-	MirrorURL        any       `json:"mirror_url"`
-	Archived         bool      `json:"archived"`
-	Disabled         bool      `json:"disabled"`
-	OpenIssuesCount  int       `json:"open_issues_count"`
-	License          struct {
-		Key    string `json:"key"`
-		Name   string `json:"name"`
-		SpdxID string `json:"spdx_id"`
-		URL    string `json:"url"`
-		NodeID string `json:"node_id"`
-	} `json:"license"`
-	AllowForking             bool   `json:"allow_forking"`
-	IsTemplate               bool   `json:"is_template"`
-	WebCommitSignoffRequired bool   `json:"web_commit_signoff_required"`
-	Topics                   []any  `json:"topics"`
-	Visibility               string `json:"visibility"`
-	Forks                    int    `json:"forks"`
-	OpenIssues               int    `json:"open_issues"`
-	Watchers                 int    `json:"watchers"`
-	DefaultBranch            string `json:"default_branch"`
-	TempCloneToken           any    `json:"temp_clone_token"`
-	NetworkCount             int    `json:"network_count"`
-	SubscribersCount         int    `json:"subscribers_count"`
-}
-
-const baseUrl = "https://api.github.com/repos"
+var (
+	repoURL          string
+	commitFlag       bool
+	commitAuthorFlag bool
+	jsonFlag         bool
+)
 
 var repositoryCmd = &cobra.Command{
-	Use:     "repository",
-	Aliases: []string{"repo"},
-	Long:    "Enter your repository URL to perform compostion analysis",
+	Use:     "risk",
+	Aliases: []string{"risk"},
+	Short:   "Analyze risk associated with a repository",
+	Long:    "Analyze risk associated with a repository by evaluating commits and authors.",
+	Example: "supply-chain-security risk --url",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		parsedUrl, err := url.Parse(args[0])
-		if err != nil {
-			fmt.Println("Error parsing the repository URL that you entered")
-			return
-		}
-		repoUrl := baseUrl + parsedUrl.Path
+		var completeSCAJson types.SCA
 
-		resp, err := http.Get(repoUrl)
-		if err != nil {
-			fmt.Println("There is some issue while fetching details from the repository URL")
-			return
-		}
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println("There is some issue while fetching details from the repository URL")
+		if repoURL == "" {
+			fmt.Println("Error: --url or -u flag is required")
 			return
 		}
 
-		gitrepo := GitHubRepo{}
-		json.Unmarshal(body, &gitrepo)
-
-		prettified, err := json.MarshalIndent(gitrepo, "", "\t")
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println(string(prettified))
-
-		err = os.WriteFile("repo.json", prettified, 0644)
-		if err != nil {
-			fmt.Println("There is some issue while saving response to file")
+		if !commitFlag && !commitAuthorFlag {
+			fmt.Println("Error: you must atleast specify --commit or --author flag")
 			return
 		}
 
+		if commitFlag {
+			fmt.Printf("Starting Authenticated Github Client...\n")
+			ctx := context.Background()
+			_ = godotenv.Load()
+
+			token := os.Getenv("GITHUB_ACCESS_TOKEN")
+			if token == "" {
+				panic("Github Token Not set")
+			}
+
+			client := util.NewGitHubClient(ctx, token)
+			fmt.Printf("✅ Github Client Started\n")
+
+			owner, repo, err := util.ParseGitHubURL(repoURL)
+			if err != nil {
+				panic(err)
+			}
+
+			completeSCAJson.Repo = repo
+			completeSCAJson.Owner = owner
+			fmt.Printf("Finding Lockfile in Repo...\n")
+
+			file, err := util.FindLockfile(ctx, client, owner, repo, jsonFlag)
+			if err != nil {
+				fmt.Printf("Could not find lockfile || lockfile not supported")
+				panic(err)
+			}
+
+			fmt.Printf("✅ Lockfile Found --> %s\n", file)
+
+			fmt.Printf("Finding commits in %s\n", file)
+			commits, err := util.GetLockFileCommits(ctx, client, owner, repo, file)
+			if err != nil {
+				fmt.Printf("Error getting commits: %v\n", err)
+				panic(err)
+			}
+
+			fmt.Printf("✅ Commits Found\n")
+
+			var allRepoCommitRisks []types.CommitRisk
+
+			fmt.Printf("Starting Commits Analysis...\n")
+
+			for i, commit := range commits {
+				fmt.Printf("Commit #%d\n", i)
+				sha := commit.GetSHA()
+				commit_author := commit.GetAuthor().GetLogin()
+				commit_date := commit.GetCommit().GetAuthor().GetDate()
+
+				content, err := util.FetchFileAtCommit(ctx, client, owner, repo, file, sha)
+				if err != nil {
+					fmt.Printf("Error reading file at %s: %v\n", sha, err)
+					panic(err)
+				}
+
+				authorId := fmt.Sprintf("%d", commit.GetAuthor().GetID())
+				authorID, err := strconv.Atoi(authorId)
+				if err != nil {
+					fmt.Println("Error:", err)
+					return
+				}
+
+				author := types.Author{
+					ID:   authorID,
+					Name: commit_author,
+				}
+
+				//var emptyFiles []types.File // need a way to add files here
+				formattedCommit := types.Commit{
+					Sha:     sha,
+					Date:    commit_date.String(),
+					Author:  author,
+					Message: commit.GetCommit().GetMessage(),
+					//Files:   emptyFiles, // reference added files here
+				}
+
+				packageUrls := util.ExtractPackages(file, content)
+
+				commitRisk, err := util.EvaluateRiskByCommit(formattedCommit, packageUrls, jsonFlag)
+				if err != nil {
+					fmt.Printf("Error evaluating risk for commit %s: %s", sha, err)
+				} else {
+					allRepoCommitRisks = append(allRepoCommitRisks, commitRisk)
+				}
+			}
+			fmt.Printf("Starting Code level Commit Risk Analysis...\n")
+			var repository types.Repo
+			repository.Name = repo
+			repository.Owner = owner
+			allRepoCommitRisks = util.FormCompleteCombinedCommitRisksByRepo(repository, allRepoCommitRisks)
+			fmt.Printf("✅ Finished Commit Analysis\n")
+			for i, commitRisk := range allRepoCommitRisks {
+				allRepoCommitRisks[i].Score = util.GetRiskRating(commitRisk.Score)
+			}
+
+			completeSCAJson.CommitRisks = allRepoCommitRisks
+			util.SaveSlice(allRepoCommitRisks, "data.json")
+			fmt.Println("✅ data.json file has been generated.")
+			fmt.Println("You can now run `supply-chain-security risk --author` to analyze commit author risks.")
+
+		}
+
+		if commitAuthorFlag {
+			if _, err := os.Stat("data.json"); os.IsNotExist(err) {
+				fmt.Println("Error: data.json file not found. Please run with --commit first.")
+				return
+			}
+			fmt.Printf("Starting Author Risk Analysis...\n")
+			owner, repo, err := util.ParseGitHubURL(repoURL)
+			if err != nil {
+				panic(err)
+			}
+			var repository types.Repo
+			repository.Name = repo
+			repository.Owner = owner
+			authorList := util.GetAuthorsByRepo(repository)
+
+			if !jsonFlag {
+				fmt.Println(authorList)
+			}
+
+			var allAuthorsRisk []types.AuthorRisk
+			allRepoCommitRisks := util.LoadSlice()
+			for _, author := range authorList {
+				if !jsonFlag {
+					fmt.Printf("Author #%s\n", author.Name)
+				}
+				authorRisk := util.EvaluateRiskByAuthor(author, allRepoCommitRisks)
+				allAuthorsRisk = append(allAuthorsRisk, authorRisk)
+			}
+
+			fmt.Printf("✅ Finished Author Risk Analysis\n")
+			for i, authorRisk := range allAuthorsRisk {
+				allAuthorsRisk[i].Score = util.GetAuthorRiskScore(authorRisk.Score)
+				if !jsonFlag {
+					fmt.Printf("%d | %s | %s\n", i, authorRisk.Author.Name, allAuthorsRisk[i].Score)
+				}
+			}
+
+			completeSCAJson.AuthorRisks = allAuthorsRisk
+			if jsonFlag {
+				util.SaveSlice(completeSCAJson, "sca.json")
+				fmt.Println("✅ sca.json file has been generated.")
+			}
+		}
 	},
 }
 
 func init() {
+	repositoryCmd.Flags().StringVarP(&repoURL, "url", "u", "", "GitHub repository URL (required)")
+	repositoryCmd.MarkFlagRequired("url")
+	repositoryCmd.Flags().BoolVarP(&commitFlag, "commit", "c", false, "Analyze Commit Risks")
+	repositoryCmd.Flags().BoolVarP(&commitAuthorFlag, "author", "a", false, "Analyze Commit Author Risk")
+	repositoryCmd.Flags().BoolVarP(&jsonFlag, "json", "j", false, "Output in JSON")
+
 	rootCmd.AddCommand(repositoryCmd)
 }

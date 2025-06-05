@@ -5,12 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Package",
+            "name": "Launch Package - SBOM",
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${fileDirname}",
-            "args": ["repo", "https://github.com/negishubham3503/propchain"]
+            "program": "${workspaceFolder}",
+            "args": ["sbom", "https://github.com/negishubham3503/propchain"]
+        },
+        {
+            "name": "Launch Package - Repo",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}",
+            "args": ["risk", "--author", "--url", "https://github.com/CyberShanks/app-sec"]
         }
     ]
 }
