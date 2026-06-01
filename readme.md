@@ -67,7 +67,10 @@ go build -o supply-chain-security
 4. Run the executable using the commands and pass it the GITHUB_URL you want to analyze with different commands and flags
 
     
-
+### Contributions
+@negishubham3503
+@CyberShanks
+@bash1422
 
 
 
